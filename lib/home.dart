@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:tahircoolpoint/profile.dart';
 import 'category.dart';
@@ -53,7 +54,7 @@ class _HomeState extends State<Home> {
     ),
   ];
 
-  final List<CategoryModel> _categories = [
+  List<CategoryModel> _categories = [
     CategoryModel(
       id: '1',
       name: 'Electronics',
@@ -86,11 +87,36 @@ class _HomeState extends State<Home> {
     ),
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    _startAutoScroll();
+@override
+void initState() {
+  super.initState();
+  _fetchCategoriesFromFirestore(); // <-- Firestore se fetch karna start kar do
+  _startAutoScroll();
+}
+
+
+  Future<void> _fetchCategoriesFromFirestore() async {
+  try {
+    final QuerySnapshot snapshot =
+        await FirebaseFirestore.instance.collection('categories').get();
+
+    final categories = snapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return CategoryModel(
+        id: doc.id,
+        name: data['category'] ?? '',
+        imageUrl: data['image'] ?? '',
+      );
+    }).toList();
+
+    setState(() {
+      _categories = categories;
+    });
+  } catch (e) {
+    print("Error fetching categories: $e");
   }
+}
+
 
   @override
   void dispose() {
@@ -167,7 +193,7 @@ class _HomeState extends State<Home> {
                   icon: Icons.shopping_cart,
                   onPressed: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const Order()),
+                    MaterialPageRoute(builder: (context) => const Home()),
                   ),
                 ),
                 _buildGradientIconButton(
@@ -272,88 +298,89 @@ class _HomeState extends State<Home> {
   }
 
   Widget _buildCategoriesGrid() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: 0.85,
-      ),
-      itemCount: _categories.length,
-      itemBuilder: (context, index) {
-        return _buildCategoryCard(_categories[index]);
-      },
-    );
-  }
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      double maxWidth = constraints.maxWidth;
+      int crossAxisCount = (maxWidth ~/ 180).clamp(2, 4); // Mobile pe 2, Large pe 4 tak
+      double maxExtent = maxWidth / crossAxisCount;
 
-  Widget _buildCategoryCard(CategoryModel category) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => Category(
-              categoryId: category.id,
-              categoryName: category.name,
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(12),
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: maxExtent,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: 0.8, // Better aspect ratio for images and text
+        ),
+        itemCount: _categories.length,
+        itemBuilder: (context, index) {
+          return _buildCategoryCard(_categories[index]);
+        },
+      );
+    },
+  );
+}
+
+Widget _buildCategoryCard(CategoryModel category) {
+  return GestureDetector(
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => Category(
+            categoryId: category.id,
+            categoryName: category.name,
+          ),
+        ),
+      );
+    },
+    child: Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: Image.network(
+                category.imageUrl,
+                fit: BoxFit.cover,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    color: Colors.grey[200],
+                    child: const Center(child: CircularProgressIndicator()),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    color: Colors.grey[200],
+                    child: const Icon(Icons.error),
+                  );
+                },
+              ),
             ),
           ),
-        );
-      },
-      child: Card(
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Container(
-              height: 100,
-              padding: const EdgeInsets.all(5),
-              child: Center(
-                child: Container(
-                  width: 80,
-                  height: 50,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      category.imageUrl,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
-                          color: Colors.grey[200],
-                          child: const Center(child: CircularProgressIndicator()),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: Colors.grey[200],
-                          child: const Icon(Icons.error),
-                        );
-                      },
-                    ),
-                  ),
-                ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              category.name,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
               ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Text(
-                category.name,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
+
 }
