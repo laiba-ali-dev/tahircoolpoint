@@ -72,6 +72,21 @@ Get.offNamed('/home');
   }
 
 
+@override
+void initState() {
+  super.initState();
+  _checkIfLoggedIn();
+}
+
+void _checkIfLoggedIn() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user != null) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const Home()),
+    );
+  }
+}
 
 
 

@@ -35,8 +35,10 @@ class _LoginPageState extends State<Login> {
           await prefs.setBool('isLoggedIn', true);
 
           if (!mounted) return;
-         Navigator.pushReplacementNamed(context, '/home');
-
+Navigator.pushReplacement(
+  context,
+  MaterialPageRoute(builder: (context) => const Home()),
+);
         }
       } on FirebaseAuthException catch (e) {
         String errorMessage = 'Login failed';
@@ -59,6 +61,21 @@ class _LoginPageState extends State<Login> {
       }
     }
   }
+  @override
+void initState() {
+  super.initState();
+  _checkIfLoggedIn();
+}
+
+void _checkIfLoggedIn() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user != null) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const Home()),
+    );
+  }
+}
 
   // Google Sign-In Function
   Future<UserCredential> signInWithGoogle() async {

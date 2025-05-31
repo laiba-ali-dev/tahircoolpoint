@@ -28,14 +28,15 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
-  Future<void> _checkLoginStatus() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      _showLoginDialog();
-    } else {
-      await fetchUserData();
-    }
+ void _checkLoginStatus() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    _showLoginDialog();
+  } else {
+    await fetchUserData();
   }
+}
+
 
   void _showLoginDialog() {
     showDialog(

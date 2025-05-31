@@ -1,8 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:tahircoolpoint/login.dart';
 import 'package:tahircoolpoint/profile.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:tahircoolpoint/order.dart' as MyOrder;
+
 import 'category.dart';
-import 'order.dart';
+import 'order.dart' hide Order;
 
 class CategoryModel {
   final String id;
@@ -34,66 +38,89 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  final String _userName = "John Doe";
+  String? _userName;
+
   final PageController _pageController = PageController(initialPage: 0);
   int _currentPage = 0;
 
   // Dummy data
-  final List<SliderModel> _sliders = [
-    SliderModel(
-      id: '1',
-      imageUrl: 'https://via.placeholder.com/800x400?text=Slider+1',
-    ),
-    SliderModel(
-      id: '2',
-      imageUrl: 'https://via.placeholder.com/800x400?text=Slider+2',
-    ),
-    SliderModel(
-      id: '3',
-      imageUrl: 'https://via.placeholder.com/800x400?text=Slider+3',
-    ),
-  ];
+  final List<SliderModel> _sliders = [];
+
 
   List<CategoryModel> _categories = [
-    CategoryModel(
-      id: '1',
-      name: 'Electronics',
-      imageUrl: 'https://via.placeholder.com/150?text=Electronics',
-    ),
-    CategoryModel(
-      id: '2',
-      name: 'Clothing',
-      imageUrl: 'https://via.placeholder.com/150?text=Clothing',
-    ),
-    CategoryModel(
-      id: '3',
-      name: 'Home & Garden',
-      imageUrl: 'https://via.placeholder.com/150?text=Home+Garden',
-    ),
-    CategoryModel(
-      id: '4',
-      name: 'Sports',
-      imageUrl: 'https://via.placeholder.com/150?text=Sports',
-    ),
-    CategoryModel(
-      id: '5',
-      name: 'Books',
-      imageUrl: 'https://via.placeholder.com/150?text=Books',
-    ),
-    CategoryModel(
-      id: '6',
-      name: 'Beauty',
-      imageUrl: 'https://via.placeholder.com/150?text=Beauty',
-    ),
+   
   ];
 
 @override
 void initState() {
   super.initState();
+
+  
   _fetchCategoriesFromFirestore(); // <-- Firestore se fetch karna start kar do
+   _fetchUserName(); // 🔹 Add this
+   _checkLoginStatus(); // 👈 Add this first
+     _fetchSlidersFromFirestore(); // <-- Add this line
   _startAutoScroll();
 }
 
+
+
+void _checkLoginStatus() async {
+  User? user = FirebaseAuth.instance.currentUser;
+  if (user == null) {
+    // User not logged in, redirect to login page
+    Future.microtask(() {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => Login()), // 👈 Replace with your actual login page class
+      );
+    });
+  }
+}
+
+Future<void> _fetchUserName() async {
+  try {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      final uid = currentUser.uid;
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('signup') // Collection name in Firestore
+          .doc(uid)
+          .get();
+
+      final data = userDoc.data();
+      setState(() {
+        _userName = data?['name'] ?? 'User';
+      });
+    } else {
+      print("User not logged in.");
+    }
+  } catch (e) {
+    print("Error fetching user name: $e");
+  }
+}
+
+Future<void> _fetchSlidersFromFirestore() async {
+  try {
+    final QuerySnapshot snapshot =
+        await FirebaseFirestore.instance.collection('sliders').get();
+
+    final sliders = snapshot.docs.map((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return SliderModel(
+        id: doc.id,
+        imageUrl: data['image'] ?? '',
+      );
+    }).toList();
+
+    setState(() {
+      _sliders.clear();
+      _sliders.addAll(sliders);
+    });
+  } catch (e) {
+    print("Error fetching sliders: $e");
+  }
+}
 
   Future<void> _fetchCategoriesFromFirestore() async {
   try {
@@ -144,6 +171,7 @@ void initState() {
 
     return Scaffold(
       appBar: AppBar(
+          automaticallyImplyLeading: false, // 👈 This removes the back arrow
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
         ),
@@ -193,7 +221,7 @@ void initState() {
                   icon: Icons.shopping_cart,
                   onPressed: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const Home()),
+                    MaterialPageRoute(builder: (context) => MyOrder.Order()),
                   ),
                 ),
                 _buildGradientIconButton(
@@ -205,9 +233,8 @@ void initState() {
                 ),
                 _buildGradientIconButton(
                   icon: Icons.person,
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const ProfilePage()),
+                  onPressed: () => Navigator.of(context).push(
+    MaterialPageRoute(builder: (context) => const ProfilePage()),
                   ),
                 ),
               ],

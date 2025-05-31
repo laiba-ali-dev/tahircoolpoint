@@ -1,7 +1,10 @@
 import 'dart:ui';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:tahircoolpoint/login.dart';
 import 'package:tahircoolpoint/profile.dart';
 import 'package:tahircoolpoint/home.dart';
 import 'package:tahircoolpoint/payment.dart';
@@ -14,58 +17,51 @@ class Order extends StatefulWidget {
 }
 
 class _OrderState extends State<Order> {
-  final List<Map<String, dynamic>> orders = [
-    {
-      '_id': '1',
-      'productId': '101',
-      'price': 499.99,
-      'status': 'completed',
-      'locationName': 'Islamabad, Pakistan',
-      'createdAt': '2023-06-15T10:30:00Z',
-      'productDetails': {
-        'title': 'Premium Smartphone',
-        'productImage': 'https://via.placeholder.com/150?text=Smartphone',
-        'price': 499.99,
-        'categoryId': {'name': 'Electronics'},
-      },
-    },
-    {
-      '_id': '2',
-      'productId': '102',
-      'price': 129.99,
-      'status': 'paid',
-      'locationName': 'Lahore, Pakistan',
-      'createdAt': '2023-06-10T14:45:00Z',
-      'paymentMethod': 'Credit Card',
-      'productDetails': {
-        'title': 'Wireless Headphones',
-        'productImage': 'https://via.placeholder.com/150?text=Headphones',
-        'price': 129.99,
-        'categoryId': {'name': 'Audio'},
-      },
-    },
-    {
-      '_id': '3',
-      'productId': '103',
-      'price': 199.99,
-      'status': 'in progress',
-      'locationName': 'Karachi, Pakistan',
-      'createdAt': '2023-06-05T09:15:00Z',
-      'productDetails': {
-        'title': 'Smart Watch',
-        'productImage': 'https://via.placeholder.com/150?text=Smartwatch',
-        'price': 199.99,
-        'categoryId': {'name': 'Wearables'},
-      },
-    },
-  ];
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+    final String? currentUserUid = FirebaseAuth.instance.currentUser?.uid;
 
-  String _formatDate(String dateString) {
+
+
+ @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+  }
+
+ void _checkLoginStatus() {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) {
+      // If not logged in, redirect to login page
+      Future.microtask(() {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please login to view your orders')),
+        );
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const Login()), // 👈 or your Login screen
+        );
+      });
+    }
+  }
+
+  String _formatDate(dynamic dateValue) {
+    // dateValue can be String or Timestamp or null
     try {
-      final date = DateTime.parse(dateString);
+      DateTime date;
+      if (dateValue == null) return 'Unknown Date';
+
+      if (dateValue is Timestamp) {
+        date = dateValue.toDate();
+      } else if (dateValue is String) {
+        date = DateTime.parse(dateValue);
+      } else if (dateValue is DateTime) {
+        date = dateValue;
+      } else {
+        return 'Unknown Date';
+      }
       return '${date.day}/${date.month}/${date.year}';
     } catch (e) {
-      return dateString;
+      return 'Unknown Date';
     }
   }
 
@@ -122,17 +118,51 @@ class _OrderState extends State<Order> {
           filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
           child: Container(
             color: Colors.black.withOpacity(0.3),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: orders.length,
-              itemBuilder: (context, index) {
-                final order = orders[index];
-                final product = order['productDetails'];
-                
-                return _buildOrderCard(
-                  context: context,
-                  order: order,
-                  product: product,
+            child: StreamBuilder<QuerySnapshot>(
+stream: currentUserUid == null
+    ? null
+    : _firestore
+        .collection('orders')
+        .where('userId', isEqualTo: currentUserUid)
+        .snapshots(),
+        
+              builder: (context, snapshot) {
+                if (currentUserUid == null) {
+  return const Center(child: Text('Please login to view your orders.', style: TextStyle(color: Colors.white)));
+}
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'No orders found',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  );
+                }
+
+                final docs = snapshot.data!.docs;
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: docs.length,
+                  
+                  itemBuilder: (context, index) {
+                    final data = docs[index].data() as Map<String, dynamic>;
+
+                    // Remove 'address' field before passing to UI
+                  
+
+                    return _buildOrderCard(
+                      context: context,
+                      order: data,
+                      product: (data['productDetails'] is Map<String, dynamic>)
+                          ? data['productDetails'] as Map<String, dynamic>
+                          : {},
+                    );
+                  },
                 );
               },
             ),
@@ -149,26 +179,44 @@ class _OrderState extends State<Order> {
     required Map<String, dynamic> product,
   }) {
     Color statusColor;
-    String statusText = order['status']?.toLowerCase() ?? 'unknown';
-    
+    String statusText =
+        (order['status'] is String) ? order['status'].toString() : 'unknown';
+
     switch (statusText) {
-      case 'completed':
+      case 'Completed':
         statusColor = Colors.green;
         break;
-      case 'in progress':
+         case 'Assigned':
+        statusColor = Colors.orange;
+        break;
+      case 'In-Progress':
         statusColor = Colors.orange;
         break;
       case 'requested':
         statusColor = Colors.blue;
         break;
-      case 'cancelled':
-        statusColor = Colors.red;
-        break;
-      case 'paid':
-        statusColor = Colors.purple;
-        break;
+     
+     
       default:
         statusColor = Colors.grey;
+    }
+
+    // Price handling safely:
+    String priceText = 'N/A';
+    final price = order['price'];
+    if (price != null) {
+      if (price is num) {
+        priceText = price.toStringAsFixed(2);
+      } else {
+        priceText = price.toString();
+      }
+    }
+
+    // Category name safely
+    String? categoryName;
+    final category = product['categoryId'];
+    if (category is Map<String, dynamic> && category['name'] is String) {
+      categoryName = category['name'];
     }
 
     return Card(
@@ -188,14 +236,13 @@ class _OrderState extends State<Order> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: product['productImage'] != null
+                  child: (product['productImage'] is String && (product['productImage'] as String).isNotEmpty)
                       ? Image.network(
                           product['productImage'],
                           width: 80,
                           height: 80,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => 
-                              _buildGradientIcon(Icons.image),
+                          errorBuilder: (_, __, ___) => _buildGradientIcon(Icons.image),
                         )
                       : _buildGradientIcon(Icons.shopping_bag),
                 ),
@@ -205,7 +252,7 @@ class _OrderState extends State<Order> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        product['title'] ?? 'Unknown Service',
+                        order['productTitle'] is String ? order['productTitle'] : 'Unknown Service',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -213,13 +260,15 @@ class _OrderState extends State<Order> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        'Price: ${order['price']?.toStringAsFixed(2) ?? 'N/A'} PKR',
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                      if (product['categoryId'] != null)
+                     if (statusText == 'Completed')
+  Text(
+    'Price: $priceText PKR',
+    style: const TextStyle(color: Colors.white70),
+  ),
+
+                      if (categoryName != null)
                         Text(
-                          'Category: ${product['categoryId']['name']}',
+                          'Category: $categoryName',
                           style: const TextStyle(color: Colors.white70),
                         ),
                       const SizedBox(height: 8),
@@ -234,78 +283,92 @@ class _OrderState extends State<Order> {
                         backgroundColor: statusColor,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                       ),
+                   
+
                     ],
                   ),
                 ),
               ],
             ),
             const Divider(height: 24, thickness: 1, color: Colors.grey),
-            Row(
-              children: [
-                _buildGradientIcon(Icons.location_on),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    order['locationName'] ?? 'Unknown location',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ),
-              ],
-            ),
+                        const SizedBox(height: 8),
+
+           if (order['address'] != null && order['address'].toString().isNotEmpty) ...[
+  const SizedBox(height: 8),
+  Row(
+    children: [
+      _buildGradientIcon(Icons.location_on),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          'Address: ${order['address']}',
+          style: const TextStyle(color: Colors.white70),
+        ),
+      ),
+    ],
+  ),
+],
+
             const SizedBox(height: 8),
             Row(
               children: [
                 _buildGradientIcon(Icons.calendar_today),
                 const SizedBox(width: 8),
                 Text(
-                  'Ordered on: ${_formatDate(order['createdAt'])}',
+                  'Ordered on: ${_formatDate(order['timestamp'])}',
                   style: const TextStyle(color: Colors.white70),
                 ),
               ],
             ),
-            if (statusText == 'completed' && order['price'] != null && order['status'] != 'paid') ...[
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => PaymentPage(
-                          orderId: order['_id'],
-                          amount: order['price'] is int 
-                              ? order['price'].toDouble()
-                              : order['price'],
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Text(
-                    'PAY NOW',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-            if (statusText == 'paid') ...[
+   // if (statusText == 'Completed' && price != null ) ...[
+//   const SizedBox(height: 16),
+//   SizedBox(
+//     width: double.infinity,
+//     child: ElevatedButton(
+//       style: ElevatedButton.styleFrom(
+//         backgroundColor: Colors.green,
+//         padding: const EdgeInsets.symmetric(vertical: 12),
+//         shape: RoundedRectangleBorder(
+//           borderRadius: BorderRadius.circular(8),
+//         ),
+//       ),
+//       onPressed: () {
+//         final orderId = order['_id'];
+//         if (orderId != null) {
+//           Navigator.push(
+//             context,
+//             MaterialPageRoute(
+//               builder: (context) => PaymentPage(
+//                 orderId: orderId,
+//                 amount: (price is int) ? price.toDouble() : price,
+//               ),
+//             ),
+//           );
+//         } else {
+//           ScaffoldMessenger.of(context).showSnackBar(
+//             const SnackBar(content: Text('Invalid order ID')),
+//           );
+//         }
+//       },
+//       child: const Text(
+//         'PAY NOW',
+//         style: TextStyle(
+//           color: Colors.white,
+//           fontWeight: FontWeight.bold,
+//         ),
+//       ),
+//     ),
+//   ),
+// ],
+
+            if (statusText == 'Completed') ...[
               const SizedBox(height: 8),
               Row(
                 children: [
                   _buildGradientIcon(Icons.payment),
                   const SizedBox(width: 8),
                   Text(
-                    'Paid via ${order['paymentMethod'] ?? 'unknown method'}',
+                    'Paid via ${order['paymentMethod'] is String ? order['paymentMethod'] : 'unknown method'}',
                     style: const TextStyle(color: Colors.white70),
                   ),
                 ],
@@ -341,7 +404,7 @@ class _OrderState extends State<Order> {
             ),
             IconButton(
               icon: _buildGradientIcon(Icons.person),
-              onPressed: () => Navigator.push(
+              onPressed: () => Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(builder: (context) => const ProfilePage()),
               ),

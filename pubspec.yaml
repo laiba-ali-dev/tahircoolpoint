@@ -46,6 +46,8 @@ dependencies:
   data_table_2: ^2.6.0
   geolocator: ^14.0.1
   geocoding: ^4.0.0
+  fluttertoast: ^8.2.12
+  flutter_typeahead: ^5.2.0
 
 dev_dependencies:
   flutter_test:
