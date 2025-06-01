@@ -104,8 +104,14 @@ class MyApp extends StatelessWidget {
 
       case '/login':
         return MaterialPageRoute(builder: (_) => Login());
+              case '/signup':
+        return MaterialPageRoute(builder: (_) => Signup());
+
               case '/home':
         return MaterialPageRoute(builder: (_) => Home());
+        
+case '/order':
+        return MaterialPageRoute(builder: (_) => Order());
 
       case '/profile':
         return MaterialPageRoute(builder: (_) => ProfilePage());

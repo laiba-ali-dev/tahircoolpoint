@@ -49,7 +49,10 @@ class _SignupState extends State<Signup> {
         'createdAt': Timestamp.now(),
       });
 
-Get.offNamed('/home'); 
+Navigator.pushReplacement(
+  context,
+  MaterialPageRoute(builder: (context) => const Home()),
+);
    } 
     on FirebaseAuthException catch (e) {
       String message = "Signup failed";

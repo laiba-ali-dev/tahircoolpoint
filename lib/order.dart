@@ -320,46 +320,7 @@ stream: currentUserUid == null
                 ),
               ],
             ),
-   // if (statusText == 'Completed' && price != null ) ...[
-//   const SizedBox(height: 16),
-//   SizedBox(
-//     width: double.infinity,
-//     child: ElevatedButton(
-//       style: ElevatedButton.styleFrom(
-//         backgroundColor: Colors.green,
-//         padding: const EdgeInsets.symmetric(vertical: 12),
-//         shape: RoundedRectangleBorder(
-//           borderRadius: BorderRadius.circular(8),
-//         ),
-//       ),
-//       onPressed: () {
-//         final orderId = order['_id'];
-//         if (orderId != null) {
-//           Navigator.push(
-//             context,
-//             MaterialPageRoute(
-//               builder: (context) => PaymentPage(
-//                 orderId: orderId,
-//                 amount: (price is int) ? price.toDouble() : price,
-//               ),
-//             ),
-//           );
-//         } else {
-//           ScaffoldMessenger.of(context).showSnackBar(
-//             const SnackBar(content: Text('Invalid order ID')),
-//           );
-//         }
-//       },
-//       child: const Text(
-//         'PAY NOW',
-//         style: TextStyle(
-//           color: Colors.white,
-//           fontWeight: FontWeight.bold,
-//         ),
-//       ),
-//     ),
-//   ),
-// ],
+  
 
             if (statusText == 'Completed') ...[
               const SizedBox(height: 8),
